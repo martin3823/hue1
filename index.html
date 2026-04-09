@@ -6,36 +6,45 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    #ui-container {
+    /* 1. Màn hình khởi đầu */
+    #ui-container, #end-overlay {
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.8); z-index: 9999;
-      display: flex; justify-content: center; align-items: center;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 9999; transition: 0.5s;
     }
-    #start-btn, #exit-btn {
-      padding: 15px 30px; font-size: 18px; font-weight: bold;
-      color: white; border: none; border-radius: 8px; cursor: pointer;
-    }
-    #start-btn { background-color: #ff3b30; }
+    #ui-container { background: rgba(0, 0, 0, 0.9); }
     
-    /* Nút thoát ẩn lúc đầu */
-    #exit-btn {
-      position: absolute; bottom: 50px; left: 50%;
-      transform: translateX(-50%); background-color: #444;
-      display: none; z-index: 10000;
+    /* 2. Lớp phủ kết thúc (Mờ & Giảm sáng) */
+    #end-overlay { 
+      background: rgba(0, 0, 0, 0.6); 
+      backdrop-filter: blur(8px); /* Tạo hiệu ứng mờ ảo */
+      display: none; 
     }
+
+    button {
+      padding: 15px 35px; margin: 10px; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 50px; cursor: pointer; text-transform: uppercase;
+    }
+    #start-btn { background: #ff3b30; color: white; box-shadow: 0 4px 15px rgba(255,59,48,0.4); }
+    #continue-btn { background: #34c759; color: white; }
+    #back-btn { background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid white; }
   </style>
 </head>
 
 <body>
 
   <div id="ui-container">
+    <h2 style="color:white; font-family: sans-serif; margin-bottom: 20px;">DAP EXPERIENCE</h2>
     <button id="start-btn">CHẠM ĐỂ KHÁM PHÁ</button>
   </div>
 
-  <button id="exit-btn">KẾT THÚC & THOÁT</button>
+  <div id="end-overlay">
+    <button id="continue-btn">Tiếp tục trải nghiệm</button>
+    <button id="back-btn">Quay lại trang chủ</button>
+  </div>
 
   <a-scene 
-    mindar-image="imageTargetSrc: targets.mind; filterMinCF: 0.0001; filterBeta: 10;"
+    mindar-image="imageTargetSrc: targets.mind; autoStart: false; filterMinCF: 0.0001; filterBeta: 10;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
     color-space="sRGB"
@@ -56,46 +65,54 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", function() {
+      const sceneEl = document.querySelector('a-scene');
       const video = document.querySelector('#video');
       const uiContainer = document.querySelector('#ui-container');
-      const startBtn = document.querySelector('#start-btn');
-      const exitBtn = document.querySelector('#exit-btn');
+      const endOverlay = document.querySelector('#end-overlay');
       const target = document.querySelector('#target');
+      
+      let playCount = 0;
 
-      let playCount = 0; // Biến đếm số lần phát
-
-      // Bắt đầu
-      startBtn.addEventListener('click', function() {
-        video.play();
-        video.pause(); 
-        uiContainer.style.display = 'none';
+      // KÍCH HOẠT TẤT CẢ TRONG 1 CLICK
+      document.querySelector('#start-btn').addEventListener('click', () => {
+        // 1. Chạy hệ thống MindAR (Hỏi quyền Camera lúc này)
+        sceneEl.systems["mindar-image-system"].start();
+        // 2. Mở khóa âm thanh
+        video.play(); video.pause();
+        // 3. Ẩn UI
+        uiContainer.style.opacity = '0';
+        setTimeout(() => { uiContainer.style.display = 'none'; }, 500);
       });
 
-      // Xử lý khi quét trúng hình
-      target.addEventListener("targetFound", event => {
+      target.addEventListener("targetFound", () => { video.play(); });
+      target.addEventListener("targetLost", () => { video.pause(); });
+
+      // LOGIC KẾT THÚC LẦN 2
+      video.addEventListener('ended', () => {
+        playCount++;
         if (playCount < 2) {
+          video.play();
+        } else {
+          // Hiện Overlay kết thúc
+          endOverlay.style.display = 'flex';
+          // Giảm âm lượng 50%
+          video.volume = 0.5;
+          // Cho phép video tiếp tục lặp ngầm
+          video.loop = true;
           video.play();
         }
       });
 
-      target.addEventListener("targetLost", event => {
-        video.pause();
+      // Nút Tiếp tục: Trả lại mọi thứ bình thường
+      document.querySelector('#continue-btn').addEventListener('click', () => {
+        endOverlay.style.display = 'none';
+        video.volume = 1.0;
+        playCount = 1; // Reset nhẹ để không hiện overlay ngay lập tức
       });
 
-      // Xử lý logic đếm lần phát và hiện nút thoát
-      video.addEventListener('ended', function() {
-        playCount++;
-        if (playCount < 2) {
-          video.play(); // Phát lại lần 2
-        } else {
-          exitBtn.style.display = 'block'; // Hiện nút thoát sau lần 2
-        }
-      });
-
-      // Nút thoát (Ví dụ: Quay về trang chủ hoặc tải lại trang)
-      exitBtn.addEventListener('click', function() {
-        window.location.href = "https://your-landing-page.com"; 
-        // Hoặc location.reload() để xem lại từ đầu
+      // Nút Quay lại
+      document.querySelector('#back-btn').addEventListener('click', () => {
+        window.location.href = "https://your-landing-page.com";
       });
     });
   </script>
